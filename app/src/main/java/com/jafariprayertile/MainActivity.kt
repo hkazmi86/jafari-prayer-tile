@@ -135,7 +135,7 @@ class MainActivity : ComponentActivity() {
         }
         gpsBtn.text = "↻ Update GPS Now"
         methodBtn.text = "Method: ${prefs.method.shortLabel}"
-        rowsBtn.text = if (prefs.showSevenRows) "Rows: 7 (+Isha/Mid)" else "Rows: 5 (Fajr–Maghrib)"
+        rowsBtn.text = if (prefs.showSevenRows) "Rows: 7 (+Asr/Isha)" else "Rows: 5 (Fajr–Maghrib)"
         formatBtn.text = if (prefs.use24Hour) "Clock: 24-Hour" else "Clock: 12-Hour"
     }
 
