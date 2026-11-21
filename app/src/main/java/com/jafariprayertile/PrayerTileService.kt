@@ -247,7 +247,7 @@ class PrayerTileService : TileService() {
                 .addContent(styledText(entry.name, fontSize, textColor, bold = isNext))
                 .addContent(
                     LayoutElementBuilders.Spacer.Builder()
-                        .setWidth(DimensionBuilders.ExpandedDimensionProp.Builder().setLayoutWeight(1f).build())
+                        .setWidth(DimensionBuilders.ExpandedDimensionProp.Builder().setLayoutWeight(androidx.wear.protolayout.TypeBuilders.FloatProp.Builder(1f).build()).build())
                         .build()
                 )
                 .addContent(styledText(timeStr, fontSize, textColor, bold = isNext))
