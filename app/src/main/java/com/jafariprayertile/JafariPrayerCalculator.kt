@@ -3,13 +3,16 @@ package com.jafariprayertile
 import java.util.Calendar
 import java.util.Locale
 import java.util.TimeZone
+import kotlin.math.abs
 import kotlin.math.acos
 import kotlin.math.asin
+import kotlin.math.atan
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlin.math.tan
 
 data class PrayerEntry(
     val name: String,
@@ -20,24 +23,31 @@ data class DayPrayers(
     val fajr: Long,
     val sunrise: Long,
     val dhuhr: Long,
+    val asr: Long,
     val sunset: Long,
     val maghrib: Long,
-    val isha: Long,
-    val midnight: Long
+    val isha: Long
 ) {
     fun asList(includeSeven: Boolean): List<PrayerEntry> {
-        val base = mutableListOf(
-            PrayerEntry("Fajr", fajr),
-            PrayerEntry("Sunrise", sunrise),
-            PrayerEntry("Dhuhr", dhuhr),
-            PrayerEntry("Sunset", sunset),
-            PrayerEntry("Maghrib", maghrib)
-        )
-        if (includeSeven) {
-            base.add(PrayerEntry("Isha", isha))
-            base.add(PrayerEntry("Midnight", midnight))
+        return if (includeSeven) {
+            listOf(
+                PrayerEntry("Fajr", fajr),
+                PrayerEntry("Sunrise", sunrise),
+                PrayerEntry("Dhuhr", dhuhr),
+                PrayerEntry("Asr", asr),
+                PrayerEntry("Sunset", sunset),
+                PrayerEntry("Maghrib", maghrib),
+                PrayerEntry("Isha", isha)
+            )
+        } else {
+            listOf(
+                PrayerEntry("Fajr", fajr),
+                PrayerEntry("Sunrise", sunrise),
+                PrayerEntry("Dhuhr", dhuhr),
+                PrayerEntry("Sunset", sunset),
+                PrayerEntry("Maghrib", maghrib)
+            )
         }
-        return base
     }
 }
 
@@ -92,6 +102,12 @@ object JafariPrayerCalculator {
         return if (ccw) noon - deltaT else noon + deltaT
     }
 
+    private fun asrTime(jd: Double, lat: Double, t: Double): Double {
+        val (decl, _) = sunPosition(jd + t)
+        val angle = -rtd(atan(1.0 / (1.0 + tan(abs(dtr(lat - decl))))))
+        return sunAngleTime(jd, lat, angle, t, false)
+    }
+
     private fun computeRawHours(
         year: Int,
         month: Int,
@@ -115,6 +131,7 @@ object JafariPrayerCalculator {
         var fajr = 5.0 / 24.0
         var sunrise = 6.0 / 24.0
         var dhuhr = 12.0 / 24.0
+        var asr = 13.0 / 24.0
         var sunset = 18.0 / 24.0
         var maghrib = 18.0 / 24.0
         var isha = 18.0 / 24.0
@@ -123,6 +140,7 @@ object JafariPrayerCalculator {
             fajr = sunAngleTime(jd, lat, fajrAngle, fajr, true) / 24.0
             sunrise = sunAngleTime(jd, lat, 0.833, sunrise, true) / 24.0
             dhuhr = midDay(jd, dhuhr) / 24.0
+            asr = asrTime(jd, lat, asr) / 24.0
             sunset = sunAngleTime(jd, lat, 0.833, sunset, false) / 24.0
             maghrib = sunAngleTime(jd, lat, maghribAngle, maghrib, false) / 24.0
             isha = sunAngleTime(jd, lat, ishaAngle, isha, false) / 24.0
@@ -133,6 +151,7 @@ object JafariPrayerCalculator {
             fixHour(fajr * 24.0 + shift),
             fixHour(sunrise * 24.0 + shift),
             fixHour(dhuhr * 24.0 + shift),
+            fixHour(asr * 24.0 + shift),
             fixHour(sunset * 24.0 + shift),
             fixHour(maghrib * 24.0 + shift),
             fixHour(isha * 24.0 + shift)
@@ -158,41 +177,19 @@ object JafariPrayerCalculator {
 
         val today = computeRawHours(year, month, day, lat, lng, tzHours, method)
 
-        // Compute tomorrow's Fajr for exact Ja'fari Shari'i Midnight (midpoint of Sunset to next Fajr)
-        val tomorrowCal = (dayStart.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
-        val tomorrowTz = TimeZone.getDefault().getOffset(tomorrowCal.timeInMillis) / 3_600_000.0
-        val tomorrow = computeRawHours(
-            tomorrowCal.get(Calendar.YEAR),
-            tomorrowCal.get(Calendar.MONTH) + 1,
-            tomorrowCal.get(Calendar.DAY_OF_MONTH),
-            lat,
-            lng,
-            tomorrowTz,
-            method
-        )
-
         fun hoursToMillis(baseCal: Calendar, hours: Double): Long {
             val totalMinutes = (hours * 60.0).roundToInt()
             return baseCal.timeInMillis + totalMinutes * 60_000L
         }
 
-        val fajrMs = hoursToMillis(dayStart, today[0])
-        val sunriseMs = hoursToMillis(dayStart, today[1])
-        val dhuhrMs = hoursToMillis(dayStart, today[2])
-        val sunsetMs = hoursToMillis(dayStart, today[3])
-        val maghribMs = hoursToMillis(dayStart, today[4])
-        val ishaMs = hoursToMillis(dayStart, today[5])
-        val nextFajrMs = hoursToMillis(tomorrowCal, tomorrow[0])
-        val midnightMs = sunsetMs + (nextFajrMs - sunsetMs) / 2L
-
         return DayPrayers(
-            fajr = fajrMs,
-            sunrise = sunriseMs,
-            dhuhr = dhuhrMs,
-            sunset = sunsetMs,
-            maghrib = maghribMs,
-            isha = ishaMs,
-            midnight = midnightMs
+            fajr = hoursToMillis(dayStart, today[0]),
+            sunrise = hoursToMillis(dayStart, today[1]),
+            dhuhr = hoursToMillis(dayStart, today[2]),
+            asr = hoursToMillis(dayStart, today[3]),
+            sunset = hoursToMillis(dayStart, today[4]),
+            maghrib = hoursToMillis(dayStart, today[5]),
+            isha = hoursToMillis(dayStart, today[6])
         )
     }
 
